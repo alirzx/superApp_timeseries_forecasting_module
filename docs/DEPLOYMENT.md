@@ -25,12 +25,26 @@ make health
 Local UI: `http://127.0.0.1:8086`, API: `http://127.0.0.1:8005`.
 Server UI from LAN: set `UI_BIND_IP=0.0.0.0` (or a specific interface IP), then browse `http://SERVER_LAN_IP:8086`. API should remain bound to `127.0.0.1` on the host; the UI proxy uses `http://api:8000` inside Compose. A LAN listener is **not** authenticated user access; apply a firewall and/or identity-aware HTTPS ingress.
 
-For an optional **host Python** smoke test, install CPU PyTorch and dependencies with the designated indexes, then run the actual model smoke test:
+### PyTorch CPU and mirror-only dependency resolution
+
+The server previously timed out on `files.pythonhosted.org` while installing `filelock` as a dependency of `torch==2.10.0+cpu` from PyTorch's CPU wheel index. Follow the verified Image Search module pattern:
+
+1. Install **ordinary Torch runtime dependencies** from Liara, falling back to Chabokan (`backend/requirements-torch-cpu.txt`).
+2. Install only the **exact CPU-specific PyTorch wheel** from `TORCH_CPU_INDEX_URL` using `--no-deps`. This deliberately prevents the CPU index from forwarding dependency requests to the unreachable PyPI file host.
+3. Install the remaining Granite / FastAPI requirements from Liara, falling back to Chabokan.
+4. Run `pip check` and assert `torch.__version__.startswith('2.10.0+cpu')` and `torch.version.cuda is None`.
+
+The ordinary Python dependency installer has **no automatic official PyPI fallback** on this host. If both regional mirrors fail, the build fails rather than silently using a broken upstream path. This fix does not mirror PyTorch's binary wheel, Hugging Face model weights, npm dependencies, or Docker base images. Real builds still require HTTPS access to those endpoints (or separately configured trusted mirrors).
+
+For optional **host Python** smoke testing, use the same order. Execute from the repository root:
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
-python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.10.0+cpu'
+python -m pip install --index-url https://package-mirror.liara.ir/repository/pypi/simple -r backend/requirements-torch-cpu.txt || python -m pip install --index-url https://mirror2.chabokan.net/pypi/simple/ -r backend/requirements-torch-cpu.txt
+python -m pip install --no-deps --index-url https://download.pytorch.org/whl/cpu 'torch==2.10.0+cpu'
 python -m pip install --index-url https://package-mirror.liara.ir/repository/pypi/simple -r backend/requirements.txt || python -m pip install --index-url https://mirror2.chabokan.net/pypi/simple/ -r backend/requirements.txt
+python -m pip check
+python -c "import torch; assert torch.version.cuda is None; assert torch.__version__.startswith('2.10.0+cpu')"
 python scripts/model_smoke.py
 ```
 

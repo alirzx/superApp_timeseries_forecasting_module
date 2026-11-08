@@ -36,3 +36,15 @@ def test_python_build_is_cpu_only_and_mirrored():
     assert 'torch.version.cuda is None' in image
     assert 'PIP_PRIMARY_INDEX_URL' in image and 'PIP_FALLBACK_INDEX_URL' in image
     assert 'pypi.org/simple' not in image
+    assert 'requirements-torch-cpu.txt' in image
+    assert (ROOT / 'backend/requirements-torch-cpu.txt').is_file()
+    assert '--no-deps' in image and "'torch==2.10.0+cpu'" in image
+    # Pure Python torch requirements MUST be installed before CPU wheel, and
+    # Granite/API requirements afterwards. Never rely on PyPI for wheel deps.
+    pure_deps = image.index('-r /tmp/requirements-torch-cpu.txt')
+    cpu_wheel = image.index("'torch==2.10.0+cpu'")
+    app_deps = image.index('-r /tmp/requirements.txt')
+    assert pure_deps < cpu_wheel < app_deps
+    assert 'python -m pip check' in image
+    assert "torch.__version__.startswith('2.10.0+cpu')" in image
+

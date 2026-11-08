@@ -17,7 +17,7 @@ Frontend: React/TypeScript/Vite + Nginx. Two long-running Docker services.
 
 ## Docker quick start (CPU only)
 
-On the host, only Docker Engine, Compose v2 and network access to Hugging Face (first model download) are required. All Python requirements are installed **inside Docker**. Liara is the primary PyPI mirror and Chabokan is the fallback; PyTorch uses the separate official CPU-only wheel index (configurable).
+On the host, only Docker Engine and Compose v2 are required for the container workflow. All Python requirements are installed **inside Docker**. As in SuperApp Image Search, pure-Python Torch dependencies and Granite/API requirements use **Liara first, then Chabokan**. The exact PyTorch CPU-only wheel is installed separately with `--no-deps` to avoid timeouts on `files.pythonhosted.org` (configurable `TORCH_CPU_INDEX_URL`). Initial model preparation also needs Hugging Face network access.
 
 ```bash
 cp .env.example .env

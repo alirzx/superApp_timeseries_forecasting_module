@@ -1,0 +1,11 @@
+# Pure-Python runtime dependencies for the official torch==2.10.0+cpu wheel.
+# Download through Liara first, Chabokan second, never through the CPU index.
+# Keep torch itself OUT of this file: Docker installs the +cpu wheel --no-deps.
+# The 2.10 wheel requires filelock, typing-extensions, sympy, networkx,
+# jinja2 and fsspec; pip check will verify actual wheel metadata afterwards.
+filelock
+typing-extensions>=4.10.0
+sympy>=1.13.3
+networkx>=2.5.1
+jinja2
+fsspec>=0.8.5

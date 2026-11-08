@@ -80,3 +80,37 @@ from a browser `VITE_` variable. Never include the key in front-end JavaScript.
 The organization's CI file is maintained separately by the DevOps team; this service does not modify or generate it.
 The current CI must be reviewed before auto-deploy, including SSH setup, model staging, revision pinning and deployment gating.
 The server has not been modified by this source patch. No third-party pretrained weights are committed.
+
+## Rootless UI: Nginx temp directories and API DNS resilience
+
+The UI runs as non-root UID 10001 with a read-only filesystem. Nginx needs all
+five temporary paths on the writable `/tmp` tmpfs: client-body, proxy,
+FastCGI, uWSGI and SCGI. Leaving the three latter modules at the Nginx default
+(`/var/cache/nginx`) causes `mkdir(...fastcgi_temp) failed (13: Permission denied)`
+and restarts.
+
+The API may not exist in Docker DNS during startup (for example, if
+production is missing `MODEL_REVISION`). The UI uses Docker's embedded DNS
+resolver `127.0.0.11` and a variable upstream to resolve `api:8000` when each
+`/api/...` request arrives. Static frontend routes stay available while the
+API is unavailable; failed API requests return an upstream error until the API
+is started. The `/api/v1/...` prefix is stripped before proxying so FastAPI
+still receives `/v1/...`. The UI has no startup dependency on API.
+
+Useful diagnostics on the actual server:
+
+```bash
+docker compose ps -a
+docker compose logs --tail=100 ui
+docker compose logs --tail=100 api
+docker compose port ui 8080
+curl -i http://127.0.0.1:8086/
+curl -i http://127.0.0.1:8005/health/ready
+```
+
+Successful `docker compose up -d` only confirms the start command ran. It
+does not prove that API or UI stays running. If UI is healthy but the model
+API is not, check production `MODEL_REVISION`, readable model files and
+`manifest.json`; run `make model`, `make model-verify` and set the exact
+verified revision before restarting API. Do not turn off the production
+revision guard or publish `API_TOKEN` in diagnostics.

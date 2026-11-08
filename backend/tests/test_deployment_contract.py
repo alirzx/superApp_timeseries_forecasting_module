@@ -23,7 +23,19 @@ def test_compose_uses_lan_bind_and_one_shot_model_download():
     compose = (ROOT / 'docker-compose.yml').read_text()
     assert 'profiles: ["setup"]' in compose
     assert '${UI_BIND_IP:-127.0.0.1}:${UI_PORT:-8086}:8080' in compose
-    assert 'http://api:8000' in (ROOT/'ops/nginx.conf.template').read_text()
+    nginx = (ROOT/'ops/nginx.conf.template').read_text()
+    assert 'resolver 127.0.0.11' in nginx
+    assert 'set $api_backend "api:8000";' in nginx
+    assert 'rewrite ^/api/(.*)$ /$1 break;' in nginx
+    assert 'proxy_pass http://$api_backend;' in nginx
+    # No DNS lookup at Nginx boot if the API is down or restarting.
+    assert 'proxy_pass http://api:8000/;' not in nginx
+    entrypoint = (ROOT/'ops/nginx-entrypoint.sh').read_text()
+    for name in ('client_body', 'proxy', 'fastcgi', 'uwsgi', 'scgi'):
+        assert f'{name}_temp_path /tmp/nginx_' in entrypoint
+    assert '/var/cache/nginx/' not in entrypoint.replace('# All Nginx temp modules default to /var/cache/nginx otherwise.', '')
+    ui_compose = compose.split('  ui:', 1)[1]
+    assert 'depends_on:' not in ui_compose
     assert '${PIP_PRIMARY_INDEX_URL' in compose
     assert '${PIP_FALLBACK_INDEX_URL' in compose
     assert 'HF_HUB_OFFLINE: "1"' in compose

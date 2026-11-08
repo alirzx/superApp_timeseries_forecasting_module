@@ -63,9 +63,8 @@ services:
     cap_drop: [ALL]
     read_only: true
     tmpfs: ["/tmp:rw,nosuid,size=16m", "/var/cache/nginx:rw,nosuid,size=16m", "/var/run:rw,nosuid,size=4m"]
-    depends_on:
-      api:
-        condition: service_started
+    # Serve static UI even when API fails to start; proxy returns 502 until ready.
+    # Runtime DNS lookup in Nginx resolves api when it becomes available.
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]

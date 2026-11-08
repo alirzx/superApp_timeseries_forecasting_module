@@ -16,6 +16,11 @@ http {
   sendfile on;
   client_body_temp_path /tmp/nginx_body;
   proxy_temp_path /tmp/nginx_proxy;
+  # All Nginx temp modules default to /var/cache/nginx otherwise.
+  # The UI runs as UID 10001 on read-only rootfs; /tmp is writable tmpfs.
+  fastcgi_temp_path /tmp/nginx_fastcgi;
+  uwsgi_temp_path /tmp/nginx_uwsgi;
+  scgi_temp_path /tmp/nginx_scgi;
   include /tmp/default.conf;
 }
 EOF

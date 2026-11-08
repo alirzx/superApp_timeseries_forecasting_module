@@ -1,0 +1,56 @@
+name: superapp-time-series-forecasting
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    environment:
+      MODEL_PATH: /models/granite-ttm-r3
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      OMP_NUM_THREADS: "${CPU_THREADS:-2}"
+      MKL_NUM_THREADS: "${CPU_THREADS:-2}"
+      OPENBLAS_NUM_THREADS: "${CPU_THREADS:-2}"
+    volumes:
+      - ./.models/granite-ttm-r3:/models/granite-ttm-r3:ro
+    ports:
+      - "${API_BIND_IP:-127.0.0.1}:${API_PORT:-8005}:8000"
+    cpus: ${API_CPUS:-2.0}
+    mem_limit: ${API_MEMORY:-2g}
+    pids_limit: 128
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  ui:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in .env}
+    ports:
+      - "${UI_BIND_IP:-127.0.0.1}:${UI_PORT:-8086}:8080"
+    cpus: ${UI_CPUS:-0.5}
+    mem_limit: ${UI_MEMORY:-256m}
+    pids_limit: 64
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,size=16m", "/var/cache/nginx:rw,nosuid,size=16m", "/var/run:rw,nosuid,size=4m"]
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3

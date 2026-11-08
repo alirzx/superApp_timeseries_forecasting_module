@@ -1,9 +1,26 @@
 name: superapp-time-series-forecasting
 services:
+  # One-shot setup profile; not part of the always-on services.
+  model-setup:
+    profiles: ["setup"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.model-setup
+      args:
+        PIP_PRIMARY_INDEX_URL: ${PIP_PRIMARY_INDEX_URL:-https://package-mirror.liara.ir/repository/pypi/simple}
+        PIP_FALLBACK_INDEX_URL: ${PIP_FALLBACK_INDEX_URL:-https://mirror2.chabokan.net/pypi/simple/}
+    env_file: .env
+    volumes:
+      - ./.models/granite-ttm-r3:/models/granite-ttm-r3:rw
+    restart: "no"
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        PIP_PRIMARY_INDEX_URL: ${PIP_PRIMARY_INDEX_URL:-https://package-mirror.liara.ir/repository/pypi/simple}
+        PIP_FALLBACK_INDEX_URL: ${PIP_FALLBACK_INDEX_URL:-https://mirror2.chabokan.net/pypi/simple/}
+        TORCH_CPU_INDEX_URL: ${TORCH_CPU_INDEX_URL:-https://download.pytorch.org/whl/cpu}
     env_file: .env
     environment:
       MODEL_PATH: /models/granite-ttm-r3
@@ -37,6 +54,7 @@ services:
     environment:
       API_TOKEN: ${API_TOKEN:?Set API_TOKEN in .env}
     ports:
+      # 0.0.0.0 or specific LAN address in server .env enables LAN access.
       - "${UI_BIND_IP:-127.0.0.1}:${UI_PORT:-8086}:8080"
     cpus: ${UI_CPUS:-0.5}
     mem_limit: ${UI_MEMORY:-256m}
@@ -50,7 +68,7 @@ services:
         condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/" ]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1.6
+# One-shot model downloader; avoids installing heavyweight PyTorch on the host.
+FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+ARG PIP_PRIMARY_INDEX_URL=https://package-mirror.liara.ir/repository/pypi/simple
+ARG PIP_FALLBACK_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
+WORKDIR /srv
+RUN --mount=type=cache,target=/root/.cache/pip \
+    (python -m pip install --index-url "$PIP_PRIMARY_INDEX_URL" 'huggingface-hub>=0.34,<2' \
+     || python -m pip install --index-url "$PIP_FALLBACK_INDEX_URL" 'huggingface-hub>=0.34,<2')
+COPY backend/app /srv/app
+COPY backend/scripts /srv/scripts
+CMD ["python", "-m", "scripts.prepare_model", "--output", "/models/granite-ttm-r3"]

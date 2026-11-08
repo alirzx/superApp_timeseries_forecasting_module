@@ -1,14 +1,20 @@
+# syntax=docker/dockerfile:1.6
 FROM python:3.11-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 CUDA_VISIBLE_DEVICES="" \
     OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 TOKENIZERS_PARALLELISM=false
 WORKDIR /srv
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
 COPY backend/requirements.txt /tmp/requirements.txt
-# Runtime installs a pinned Granite dependency range; build requires PyPI availability.
+ARG PIP_PRIMARY_INDEX_URL=https://package-mirror.liara.ir/repository/pypi/simple
+ARG PIP_FALLBACK_INDEX_URL=https://mirror2.chabokan.net/pypi/simple/
+# CPU-specific wheels are not normal PyPI packages; intentionally never install a CUDA build.
 ARG TORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir --index-url "$TORCH_CPU_INDEX_URL" torch==2.10.0 \
-    && pip install --no-cache-dir -r /tmp/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --index-url "$TORCH_CPU_INDEX_URL" 'torch==2.10.0+cpu' \
+    && (python -m pip install --index-url "$PIP_PRIMARY_INDEX_URL" -r /tmp/requirements.txt \
+       || python -m pip install --index-url "$PIP_FALLBACK_INDEX_URL" -r /tmp/requirements.txt) \
+    && python -c "import torch; assert torch.version.cuda is None, 'CUDA wheel detected'; print('verified cpu torch', torch.__version__)"
 COPY backend/app /srv/app
 COPY backend/scripts /srv/scripts
 USER appuser

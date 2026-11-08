@@ -1,11 +1,12 @@
 .PHONY: doctor model model-verify build up down ps health test smoke
 PYTHON ?= python3
 doctor:
-	docker compose config --quiet
+	docker compose --env-file .env config --quiet
 model:
-	PYTHONPATH=backend $(PYTHON) backend/scripts/prepare_model.py --output .models/granite-ttm-r3
+	docker compose --profile setup build model-setup
+	docker compose --profile setup run --rm --no-deps model-setup
 model-verify:
-	PYTHONPATH=backend $(PYTHON) backend/scripts/prepare_model.py --output .models/granite-ttm-r3 --verify-only
+	docker compose --profile setup run --rm --no-deps model-setup python -m scripts.prepare_model --output /models/granite-ttm-r3 --verify-only
 build:
 	docker compose build api ui
 up:
@@ -15,8 +16,10 @@ ps:
 down:
 	docker compose down
 health:
-	curl -fsS http://127.0.0.1:8005/health/ready
+	docker compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5); print('API model ready')"
+	docker compose exec -T ui wget -qO- http://127.0.0.1:8080/ >/dev/null
+	@echo 'UI reachable inside container'
 test:
-	PYTHONPATH=backend pytest -q backend/tests
+	PYTHONPATH=backend $(PYTHON) -m pytest -q backend/tests
 smoke:
 	$(PYTHON) scripts/smoke_api.py

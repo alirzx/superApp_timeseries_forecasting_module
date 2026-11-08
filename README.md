@@ -15,32 +15,26 @@ Frontend: React/TypeScript/Vite + Nginx. Two long-running Docker services.
 - Synthetic 720-hour energy-demand input, usable in the UI and API.
 - Model revision/hash manifest, offline-only runtime, request authentication, health and metrics.
 
-## Quick start
+## Docker quick start (CPU only)
+
+On the host, only Docker Engine, Compose v2 and network access to Hugging Face (first model download) are required. All Python requirements are installed **inside Docker**. Liara is the primary PyPI mirror and Chabokan is the fallback; PyTorch uses the separate official CPU-only wheel index (configurable).
 
 ```bash
 cp .env.example .env
-# Replace API_TOKEN with: openssl rand -hex 32
-python3 -m venv .venv && . .venv/bin/activate
-pip install 'huggingface-hub>=0.34,<2' safetensors
-make model              # first time requires Hugging Face access
-make model-verify       # verify pinned model SHA256 manifest
+# Edit .env: set API_TOKEN to a fresh secret: openssl rand -hex 32
+make doctor
+make model              # builds a lightweight one-shot setup image, then downloads the model
+make model-verify       # verifies model SHA256 manifest
+# For production set MODEL_REVISION in .env to the SHA in .models/granite-ttm-r3/manifest.json
 make build
 make up
-make health             # Granite readiness required
-python scripts/smoke_api.py --model granite-ttm-r3
+make ps
+make health             # checks Granite readiness and UI inside Docker
 ```
 
-UI: http://127.0.0.1:8086 · API: http://127.0.0.1:8005.
+For LAN access set `UI_BIND_IP=0.0.0.0` or the server's exact LAN address in `.env`, then browse `http://SERVER_LAN_IP:8086` from a permitted LAN client. Keep `API_BIND_IP=127.0.0.1`: Nginx reaches the API through Docker's internal `api:8000` service. **The Nginx API token is not browser user authentication.** Restrict LAN access with a firewall or authenticated ingress.
 
-For direct local model execution:
-
-```bash
-pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
-pip install -r backend/requirements.txt
-python scripts/model_smoke.py
-```
-
-See `docs/DEPLOYMENT.md` for deployment details and `docs/API.md` for requests.
+Local inference test (optional, installs heavyweight Python dependencies on the host): see `docs/DEPLOYMENT.md`. Model setup requires access to Hugging Face; PyPI mirrors do **not** mirror Hugging Face model weights or Docker base images.
 
 ## Testing the service without model weights
 
@@ -63,9 +57,7 @@ PYTHONPATH=backend pytest -q backend/tests
 3. Local development/verification of the backend tests passed, but the real
    Granite CPU smoke and full UI build could not run in the offline artifact environment.
 4. The 2 GB memory and sub-second latency are design targets, not measured claims.
-5. Docker Vite build currently uses `npm install` because the registry is unavailable
-   in the artifact environment. Generate and commit `package-lock.json`, then
-   switch to `npm ci` on a machine with registry access.
+5. Frontend still uses `npm install` until a reviewed `package-lock.json` is generated and committed. Switch to `npm ci` after validating it on a network-enabled machine.
 6. `/v1/forecast/batch` runs independently per series. This is NOT native
    multivariate/covariate forecasting.
 7. Model license is Apache-2.0 per IBM's model card; verify model and dependency

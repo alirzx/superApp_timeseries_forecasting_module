@@ -1,5 +1,5 @@
 """Minimal, explicit environment configuration; no secrets baked into images."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from pathlib import Path
 
@@ -51,7 +51,14 @@ class Settings:
         if s.model_revision and (len(s.model_revision) != 40 or any(c not in '0123456789abcdef' for c in s.model_revision)):
             raise ValueError('MODEL_REVISION must be immutable 40-character SHA')
         if s.app_env == 'production' and not s.model_revision:
-            raise ValueError('Production requires MODEL_REVISION pin')
+            # On first deployment, one-shot setup writes the verified snapshot
+            # before API starts. Trust only its SHA256-verified local manifest.
+            from app.core.model_integrity import verify_model
+            try:
+                cached_revision = verify_model(s.model_path)
+            except (OSError, ValueError, KeyError) as exc:
+                raise ValueError('Production requires verified model cache or MODEL_REVISION; check model-setup logs') from exc
+            s = replace(s, model_revision=cached_revision)
         if s.app_env == 'production' and not s.api_auth_enabled:
             raise ValueError('Production API authentication cannot be disabled')
         if s.api_auth_enabled and (len(s.api_token) < 24 or s.api_token.startswith('REPLACE_')):

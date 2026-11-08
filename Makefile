@@ -3,12 +3,12 @@ PYTHON ?= python3
 doctor:
 	docker compose --env-file .env config --quiet
 model:
-	docker compose --profile setup build model-setup
-	docker compose --profile setup run --rm --no-deps model-setup
+	docker compose build model-setup
+	docker compose run --rm --no-deps model-setup
 model-verify:
-	docker compose --profile setup run --rm --no-deps model-setup python -m scripts.prepare_model --output /models/granite-ttm-r3 --verify-only
+	docker compose run --rm --no-deps model-setup python -m scripts.prepare_model --output /models/granite-ttm-r3 --verify-only
 build:
-	docker compose build api ui
+	docker compose build model-setup api ui
 up:
 	docker compose up -d --no-build api ui
 ps:

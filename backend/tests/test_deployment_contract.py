@@ -21,7 +21,10 @@ def test_env_templates_are_trackable_and_safe():
 
 def test_compose_uses_lan_bind_and_one_shot_model_download():
     compose = (ROOT / 'docker-compose.yml').read_text()
-    assert 'profiles: ["setup"]' in compose
+    assert 'profiles: ["setup"]' not in compose
+    assert 'condition: service_completed_successfully' in compose
+    assert 'model-setup:' in compose and '  api:' in compose
+    assert 'docker compose build model-setup api ui' in (ROOT / 'Makefile').read_text()
     assert '${UI_BIND_IP:-127.0.0.1}:${UI_PORT:-8086}:8080' in compose
     nginx = (ROOT/'ops/nginx.conf.template').read_text()
     assert 'resolver 127.0.0.11' in nginx

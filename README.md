@@ -23,9 +23,9 @@ On the host, only Docker Engine and Compose v2 are required for the container wo
 cp .env.example .env
 # Edit .env: set API_TOKEN to a fresh secret: openssl rand -hex 32
 make doctor
-make model              # builds a lightweight one-shot setup image, then downloads the model
+make model              # optional manual setup; normal compose up now auto-runs this one-shot step
 make model-verify       # verifies model SHA256 manifest
-# For production set MODEL_REVISION in .env to the SHA in .models/granite-ttm-r3/manifest.json
+# Production may derive the revision from the verified cached manifest; pin it in .env for repeatability.
 make build
 make up
 make ps

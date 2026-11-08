@@ -2,7 +2,7 @@
 
 ## Bootstrap on a network-enabled Docker host
 
-Only Docker Engine + Compose v2 are required for the container workflow. Model setup is an ephemeral **profiled** service, not a third always-on container. Docker's Python dependency installs use Liara, then Chabokan if needed. The CPU-only PyTorch wheel is fetched separately from the CPU wheel index (override `TORCH_CPU_INDEX_URL` with a trusted internal CPU-wheel mirror if needed). Hugging Face weights, npm dependencies and Docker base images are separate distribution channels.
+Only Docker Engine + Compose v2 are required for the container workflow. Model setup is an ephemeral **one-shot dependency** of API, not a third always-on container. Normal `docker compose up --build -d` runs it before the API. The existing verified manifest is reused on later starts without network access. Docker's Python dependency installs use Liara, then Chabokan if needed. The CPU-only PyTorch wheel is fetched separately from the CPU wheel index (override `TORCH_CPU_INDEX_URL` with a trusted internal CPU-wheel mirror if needed). Hugging Face weights, npm dependencies and Docker base images are separate distribution channels.
 
 ```bash
 cp .env.example .env
@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 print('Pin MODEL_REVISION='+json.loads(Path('.models/granite-ttm-r3/manifest.json').read_text())['revision'])
 PYIN
-# Production: add that exact MODEL_REVISION to .env before make up
+# Production may use the verified cached manifest; pin the MODEL_REVISION in .env for reproducibility.
 make build
 make up
 make ps
@@ -64,7 +64,7 @@ from a browser `VITE_` variable. Never include the key in front-end JavaScript.
 ## Production
 
 - Use `.env.production.example` as a checklist, **not** as a secret file.
-- Set a strong per-service token and immutable model revision.
+- Set a strong per-service token. For reproducibility pin MODEL_REVISION. When empty, Production requires a verified local manifest and derives the immutable revision from it.
 - Transfer `.models/granite-ttm-r3` securely after `model-verify`; retain manifest.
 - Use `APP_ENV=production`, `API_AUTH_ENABLED=true`; keep API host port on loopback. Bind UI to the LAN interface only if the firewall/ingress limits clients.
 - Place authenticated TLS ingress with per-user access control and rate limits in front of UI.

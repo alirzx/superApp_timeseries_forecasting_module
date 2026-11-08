@@ -23,10 +23,34 @@ function App(){
   const [active,setActive]=useState<'overview'|'forecast'|'history'>('overview');
   const [drag,setDrag]=useState(false);
   const chooser=useRef<HTMLInputElement>(null);
-  useEffect(()=>{api.models().then(setStatus).catch(()=>{});},[]);
+  const manualFileChosen=useRef(false);
+  const [apiConnectionFailed,setApiConnectionFailed]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    const refresh=()=>{api.models().then(s=>{if(active){setStatus(s);setApiConnectionFailed(false);}})
+      .catch(()=>{if(active){setStatus(null);setApiConnectionFailed(true);}});};
+    refresh();
+    const timer=window.setInterval(refresh,10000);
+    return ()=>{active=false;window.clearInterval(timer);};
+  },[]);
+  // Preload the bundled CSV; selecting a user file always takes priority.
+  useEffect(()=>{
+    let active=true;
+    fetch('/sample-energy.csv').then(async r=>{
+      if(!r.ok)throw Error('Sample CSV unavailable');
+      const content=await r.text();
+      const sample=parseCSV(content);
+      if(active&&!manualFileChosen.current){
+        setFile(new File([content],'sample-energy.csv',{type:'text/csv'}));
+        setPoints(sample);
+        setFrequency('h');setHorizon(24);setSeason(24);
+      }
+    }).catch(e=>{if(active&&!manualFileChosen.current)setError(errorMessage(e));});
+    return ()=>{active=false;};
+  },[]);
   const modelStatus=status?.models.find(s=>s.id===model);
-  async function choose(f:File){setFile(f);setResult(null);setBacktest(null);setError('');try {const text=await f.text();setPoints(f.name.endsWith('.csv')?parseCSV(text,dateCol,valueCol):[]);}catch{setPoints([]);}}
-  async function loadSample(){try {const r=await fetch('/sample-energy.csv');if(!r.ok)throw Error('فایل نمونه در دسترس نیست'); const body=await r.blob(); await choose(new File([body],'sample-energy.csv',{type:'text/csv'}));setFrequency('h');setHorizon(24);setSeason(24);}catch(e){setError(errorMessage(e));}}
+  async function choose(f:File){manualFileChosen.current=true;setFile(f);setResult(null);setBacktest(null);setError('');try {const text=await f.text();setPoints(f.name.endsWith('.csv')?parseCSV(text,dateCol,valueCol):[]);}catch{setPoints([]);}}
+  async function loadSample(){manualFileChosen.current=false;try {const r=await fetch('/sample-energy.csv');if(!r.ok)throw Error('فایل نمونه در دسترس نیست'); const body=await r.blob(); await choose(new File([body],'sample-energy.csv',{type:'text/csv'}));setFrequency('h');setHorizon(24);setSeason(24);}catch(e){setError(errorMessage(e));}}
   async function submit(){if(!file)return;setLoading(true);setError('');setBacktest(null);try{const r=await api.forecastFile(file,{model,frequency,horizon,timestampColumn:dateCol,valueColumn:valueCol,seasonalPeriod:season});setResult(r);setActive('forecast');}catch(e){setError(errorMessage(e));}finally{setLoading(false);}}
   async function evaluate(){if(!points.length){setError('برای اعتبارسنجی، یک فایل CSV با ستون‌های timestamp و value بارگذاری کنید.');return;}setAssessing(true);setError('');try{setBacktest(await api.backtest(points,{model,frequency,horizon,seasonalPeriod:season}));setActive('history');}catch(e){setError(errorMessage(e));}finally{setAssessing(false);}}
   function exportJSON(){if(!result)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));a.download='superapp-forecast.json';a.click();URL.revokeObjectURL(a.href);}
@@ -41,13 +65,13 @@ function App(){
       <div className="sidebar-bottom"><div className="side-gradient"><span className="side-mini">ماژول پنجم</span><strong>Time Series<br/>Forecasting</strong><span>Granite TTM-R3 · CPU</span></div><div className="app-version">SUPERAPP / MODULE 05 <span>v0.1.0</span></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="breadcrumb">سوپر اپ <span> / </span> هوش مصنوعی <span> / </span> <b>پیش‌بینی سری زمانی</b></div><div className="top-actions"><span className={'status-chip '+(modelStatus?.loaded?'good':'warm')}><i/>{modelStatus?.loaded?'مدل آماده است':'مدل نیازمند راه‌اندازی'}</span><span className="avatar">AI</span></div></header>
+      <header className="topbar"><div className="breadcrumb">سوپر اپ <span> / </span> هوش مصنوعی <span> / </span> <b>پیش‌بینی سری زمانی</b></div><div className="top-actions"><span className={'status-chip '+(modelStatus?.loaded?'good':'warm')}><i/>{modelStatus?.loaded?'مدل آماده است':apiConnectionFailed?'ارتباط با API برقرار نیست':status?'مدل در حال آماده‌سازی است':'در حال بررسی وضعیت مدل'}</span><span className="avatar">AI</span></div></header>
       <div className="content">
         <div className="heading"><div><div className="eyebrow">TIME-SERIES INTELLIGENCE <span>●</span> MODULE 05</div><h1>پیش‌بینی سری زمانی</h1><p>داده‌های تاریخی را به دیدگاهی روشن از آینده تبدیل کنید؛ سریع، سبک و کاملاً روی CPU.</p></div><div className="head-right"><span>⚡</span><div><b>Granite TinyTimeMixer R3</b><small>Zero-shot · On-premise</small></div></div></div>
         <div className="stats-grid"><div className="stat-card"><div className="stat-top">نقاط داده <span>▥</span></div><div className="stat-value">{fmt(result?.observations_used||points.length,0)} <small>رکورد</small></div><div className="stat-foot">داده تاریخی ورودی</div></div><div className="stat-card"><div className="stat-top">افق پیش‌بینی <span>↗</span></div><div className="stat-value">{fmt(horizon,0)} <small>گام آینده</small></div><div className="stat-foot">قابل تنظیم براساس نیاز</div></div><div className="stat-card"><div className="stat-top">زمان استنتاج <span>◷</span></div><div className="stat-value">{result?fmt(result.latency_ms,0):'—'} <small>میلی‌ثانیه</small></div><div className="stat-foot">مدت محاسبه درخواست اخیر</div></div><div className="stat-card accent"><div className="stat-top">تغییر پیش‌بینی <span>⌁</span></div><div className="stat-value">{delta===null?'—':`${delta>=0?'+':''}${fmt(delta,1)}%`}</div><div className="stat-foot">نسبت به آخرین مقدار تاریخی</div></div></div>
         <div className="grid-main"><section className="card setup-card"><div className="card-head"><div><span className="step-label">01 / تنظیمات</span><h2>آماده‌سازی پیش‌بینی</h2><p>داده را وارد کرده و تنظیمات را انتخاب کنید.</p></div><span className="card-symbol">⚙</span></div>
             <div className="field-label">بارگذاری داده <small>CSV / JSON</small></div><div className={'dropzone '+(drag?'is-drag':'')} onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])void choose(e.dataTransfer.files[0]);}} onClick={()=>chooser.current?.click()} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter')chooser.current?.click();}}><div className="upload-icon">⇧</div><strong>{file?file.name:'فایل سری زمانی را اینجا رها کنید'}</strong><span>{file?'برای تغییر فایل کلیک کنید':'یا برای انتخاب فایل از دستگاه کلیک کنید'}</span><input ref={chooser} hidden type="file" accept=".csv,.json" onChange={e=>{if(e.target.files?.[0])void choose(e.target.files[0]);}}/></div>
-            <button className="sample-link" onClick={loadSample}>✦ بارگذاری نمونه واقعی‌نما: مصرف انرژی (۷۲۰ ساعت)</button>
+            <button className="sample-link" onClick={loadSample}>✦ بازنشانی داده نمونه: مصرف انرژی (۷۲۰ ساعت)</button>{file?.name==='sample-energy.csv'&&<div className="form-hint">✓ فایل نمونه ۷۲۰ ساعته به‌صورت خودکار آماده شده است. برای مشاهده پیش‌بینی دکمه اجرا را انتخاب کنید.</div>}
             <div className="separator"/>
             <label className="field-label" htmlFor="model">موتور پیش‌بینی</label><select id="model" value={model} onChange={e=>setModel(e.target.value as ModelId)}><option value="granite-ttm-r3">Granite TTM-R3 (مدل اصلی)</option><option value="seasonal-naive">Seasonal Naive (مرجع آماری)</option></select>
             <div className="two-cols"><div><label className="field-label" htmlFor="freq">فاصله زمانی</label><select id="freq" value={frequency} onChange={e=>setFrequency(e.target.value as Frequency)}><option value="D">روزانه</option><option value="h">ساعتی</option></select></div><div><label className="field-label" htmlFor="horizon">افق آینده</label><select id="horizon" value={horizon} onChange={e=>setHorizon(Number(e.target.value))}>{[6,12,24,30].map(n=><option value={n} key={n}>{fmt(n,0)} گام</option>)}</select></div></div>

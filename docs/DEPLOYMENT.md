@@ -63,5 +63,5 @@ from a browser `VITE_` variable. Never include the key in front-end JavaScript.
 
 ## Not included
 
-No CI/CD file is included by request. No remote Git repository or running server
-was modified. No third-party pretrained weights are committed to this source archive.
+No CI/CD file is included by request. The server has not been modified by this patch.
+No third-party pretrained weights are committed to the repository.

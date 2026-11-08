@@ -63,5 +63,6 @@ from a browser `VITE_` variable. Never include the key in front-end JavaScript.
 
 ## Not included
 
-No CI/CD file is included by request. The server has not been modified by this patch.
-No third-party pretrained weights are committed to the repository.
+The organization's CI file is maintained separately by the DevOps team; this service does not modify or generate it.
+The current CI must be reviewed before auto-deploy, including SSH setup, model staging, revision pinning and deployment gating.
+The server has not been modified by this source patch. No third-party pretrained weights are committed.

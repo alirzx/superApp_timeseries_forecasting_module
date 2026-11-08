@@ -36,4 +36,3 @@ def test_python_build_is_cpu_only_and_mirrored():
     assert 'torch.version.cuda is None' in image
     assert 'PIP_PRIMARY_INDEX_URL' in image and 'PIP_FALLBACK_INDEX_URL' in image
     assert 'pypi.org/simple' not in image
-    assert not (ROOT/'.gitlab-ci.yml').exists()
